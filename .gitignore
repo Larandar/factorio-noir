@@ -2,3 +2,5 @@ originals
 .DS_Store
 __base__
 __core__
+raw.txt
+raw.pickle
