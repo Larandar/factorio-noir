@@ -2,7 +2,7 @@
 
 from PIL import Image, ImageEnhance
 from pathlib import Path
-from multiprocessing import Pool, JoinableQueue
+from concurrent.futures import ProcessPoolExecutor
 import os
 import shutil
 import time
@@ -169,39 +169,6 @@ def should_exclude(path, exclude):
     return False
 
 
-class MultiProcessor:
-
-    queue = None
-    pool = None
-
-    def __init__(self, target):
-        self.queue = JoinableQueue()
-        self.pool = Pool(NUM_PROCESSES, self._worker, (self.queue, target))
-
-    def join(self):
-        # Add NUM_PROCESSES Nones to the queue to indicate to workers they
-        # should exit
-        for _ in range(NUM_PROCESSES):
-            self.queue.put(None)
-
-        self.queue.join()
-
-    def submit_task(self, task):
-        self.queue.put(task)
-
-    @staticmethod
-    def _worker(queue, target):
-
-        while True:
-            args = queue.get()
-            if not args:
-                queue.task_done()
-                break
-
-            target(args)
-            queue.task_done()
-
-
 def test_image(args):
     path, brightness, alpha = args
     if "base" in str(path):
@@ -213,10 +180,7 @@ def test_image(args):
     print(path, "->", replace)
 
 
-def render_image(args):
-    path, brightness, alpha = args
-
-    path, brightness, alpha = args
+def render_image(path, brightness, alpha):
     if "base" in str(path):
         replace = str(path).replace("originals/base/graphics", "__base__/graphics")
 
@@ -247,50 +211,50 @@ def main():
     start = time.perf_counter()
 
     # shutil.rmtree("graphics", ignore_errors=True)
-    processor = MultiProcessor(render_image)
+    processor = ProcessPoolExecutor(NUM_PROCESSES)
 
     for filename in list(generate_filenames(CORE, CORE_EXCLUDE)):
         if not filename:
             raise Exception()
 
-        processor.submit_task((filename, 0.7, 0.1))
+        processor.submit(render_image, filename, 0.7, 0.1)
 
     # Misc STuff
     for filename in list(generate_filenames(MISC_STUFF)):
         if not filename:
             raise Exception()
 
-        processor.submit_task((filename, 0.6, 0.05))
+        processor.submit(render_image, filename, 0.6, 0.05)
 
     # Base Entities
     for filename in list(generate_filenames(BASE_ENTITIES, ENTITY_EXCLUDE)):
         if not filename:
             raise Exception()
 
-        processor.submit_task((filename, 0.7, 0.05))
+        processor.submit(render_image, filename, 0.7, 0.05)
 
     # Entites that need more color
     for filename in list(generate_filenames(BRIGHT_ENTITIES, ENTITY_EXCLUDE)):
         if not filename:
             raise Exception()
 
-        processor.submit_task((filename, 0.7, 0.10))
+        processor.submit(render_image, filename, 0.7, 0.10)
 
     # Terrain
     for filename in list(generate_filenames(TERRAIN, TERRAIN_EXCLUDE)):
         if not filename:
             raise Exception()
 
-        processor.submit_task((filename, 0.4, 0.15))
+        processor.submit(render_image, filename, 0.4, 0.15)
 
     # Ore
     for filename in list(generate_filenames(ORE, ORE_EXCLUDE)):
         if not filename:
             raise Exception()
 
-        processor.submit_task((filename, 0.7, 0.2))
+        processor.submit(render_image, filename, 0.7, 0.2)
 
-    processor.join()
+    processor.shutdown()
     print(f"Done in {time.perf_counter() - start:.1f}s")
 
 
