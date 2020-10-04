@@ -4,10 +4,11 @@ from PIL import Image, ImageEnhance
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 import os
+import pickle
 import shutil
 import time
 
-ORIGINAL_GRAPHICS_PATH = "originals/"
+ORIGINAL_GRAPHICS_PATH = Path("originals")
 
 NUM_PROCESSES = os.cpu_count()
 
@@ -156,7 +157,7 @@ CORE_EXCLUDE = [
 
 def generate_filenames(dirs, exclude=[]):
     for dir in dirs:
-        for path in Path().rglob(ORIGINAL_GRAPHICS_PATH + dir + "/**/*.png"):
+        for path in Path().glob(str(ORIGINAL_GRAPHICS_PATH / dir / "**" / "*.png")):
             if should_exclude(path, exclude):
                 continue
             yield path
@@ -169,25 +170,30 @@ def should_exclude(path, exclude):
     return False
 
 
-def test_image(args):
-    path, brightness, alpha = args
-    if "base" in str(path):
-        replace = str(path).replace("originals/base/graphics", "__base__/graphics")
+def test_image(path, brightness, alpha):
+    if path.parts[1] == "base":
+        replace = Path("__base__", *path.parts[2:])
 
-    if "core" in str(path):
-        replace = str(path).replace("originals/core/graphics", "__core__/graphics")
+    elif path.parts[1] == "core":
+        replace = Path("__core__", *path.parts[2:])
+
+    else:
+        raise RuntimeError(f"Unknown path {path}")
 
     print(path, "->", replace)
 
 
 def render_image(path, brightness, alpha):
-    if "base" in str(path):
-        replace = str(path).replace("originals/base/graphics", "__base__/graphics")
+    if path.parts[1] == "base":
+        replace = Path("__base__", *path.parts[2:])
 
-    if "core" in str(path):
-        replace = str(path).replace("originals/core/graphics", "__core__/graphics")
+    elif path.parts[1] == "core":
+        replace = Path("__core__", *path.parts[2:])
 
-    os.makedirs(Path(replace).parent, exist_ok=True)
+    else:
+        raise RuntimeError(f"Unknown path {path}")
+
+    os.makedirs(replace.parent, exist_ok=True)
 
     img_orig = Image.open(path).convert("RGBA")
 
